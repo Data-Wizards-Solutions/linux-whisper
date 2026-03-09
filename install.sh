@@ -85,17 +85,19 @@ if ! grep -q "^uinput$" /etc/modules-load.d/*.conf 2>/dev/null; then
     echo "[OK] uinput set to load on boot"
 fi
 
-# ---- Setup ydotoold systemd user service ----
+# ---- Setup ydotoold systemd user service (only for ydotool v1.x+) ----
 echo ""
-echo "[SETUP] Configuring ydotoold service..."
+echo "[SETUP] Checking ydotool version..."
 
 YDOTOOL_SERVICE_DIR="$HOME/.config/systemd/user"
 YDOTOOL_SERVICE="$YDOTOOL_SERVICE_DIR/ydotoold.service"
 
-mkdir -p "$YDOTOOL_SERVICE_DIR"
+if command -v ydotoold &> /dev/null; then
+    # ydotool v1.x+ has a separate daemon
+    mkdir -p "$YDOTOOL_SERVICE_DIR"
 
-if [ ! -f "$YDOTOOL_SERVICE" ]; then
-    cat > "$YDOTOOL_SERVICE" << 'EOF'
+    if [ ! -f "$YDOTOOL_SERVICE" ]; then
+        cat > "$YDOTOOL_SERVICE" << 'EOF'
 [Unit]
 Description=ydotool daemon (user)
 Documentation=man:ydotoold(8)
@@ -108,22 +110,34 @@ RestartSec=3
 [Install]
 WantedBy=default.target
 EOF
-    echo "[OK] Created ydotoold user service"
+        echo "[OK] Created ydotoold user service"
+    else
+        echo "[OK] ydotoold service already exists"
+    fi
+
+    systemctl --user daemon-reload
+
+    if systemctl --user enable ydotoold.service 2>/dev/null; then
+        echo "[OK] ydotoold service enabled"
+    fi
+
+    if systemctl --user start ydotoold.service 2>/dev/null; then
+        echo "[OK] ydotoold service started"
+    else
+        echo "[WARN] Could not start ydotoold now (may need logout/login for group permissions)"
+    fi
 else
-    echo "[OK] ydotoold service already exists"
-fi
+    # ydotool v0.1.x works without a daemon
+    echo "[OK] ydotool v0.1.x detected (no daemon needed)"
 
-systemctl --user daemon-reload
-
-# Try to enable and start ydotoold
-if systemctl --user enable ydotoold.service 2>/dev/null; then
-    echo "[OK] ydotoold service enabled"
-fi
-
-if systemctl --user start ydotoold.service 2>/dev/null; then
-    echo "[OK] ydotoold service started"
-else
-    echo "[WARN] Could not start ydotoold now (may need logout/login for group permissions)"
+    # Clean up any stale ydotoold service from a previous install
+    if [ -f "$YDOTOOL_SERVICE" ]; then
+        systemctl --user stop ydotoold.service 2>/dev/null || true
+        systemctl --user disable ydotoold.service 2>/dev/null || true
+        rm -f "$YDOTOOL_SERVICE"
+        systemctl --user daemon-reload
+        echo "[OK] Removed stale ydotoold service"
+    fi
 fi
 
 # ---- Create Python venv ----
@@ -148,8 +162,6 @@ mkdir -p "$WHISPER_SERVICE_DIR"
 cat > "$WHISPER_SERVICE" << EOF
 [Unit]
 Description=Linux Whisper Dictation
-After=ydotoold.service
-Wants=ydotoold.service
 
 [Service]
 Type=simple
@@ -160,7 +172,7 @@ RestartSec=5
 TimeoutStartSec=120
 StandardOutput=journal
 StandardError=journal
-Environment=PULSE_PROP_media.role=music
+Environment="PULSE_PROP_media.role=music"
 
 [Install]
 WantedBy=default.target

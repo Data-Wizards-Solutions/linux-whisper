@@ -198,7 +198,7 @@ class AudioHealthMonitor:
     """
 
     # Device name substrings that indicate virtual/loopback devices
-    _VIRTUAL_NAMES = {"pipewire", "default", "null", "dummy", "loopback"}
+    _VIRTUAL_NAMES = {"null", "dummy", "loopback"}
 
     def __init__(self, check_interval=30):
         self.check_interval = check_interval
@@ -307,6 +307,10 @@ class WhisperDictation:
 
         print(f"[READY] Model loaded. Press {config['hotkey']} to start dictating.")
 
+        # Background watchdog to auto-reset stuck state
+        self._watchdog = threading.Thread(target=self._watchdog_loop, daemon=True)
+        self._watchdog.start()
+
     def _on_recording_start(self):
         print("[REC] Recording...")
 
@@ -335,6 +339,13 @@ class WhisperDictation:
                 return True
         return False
 
+    def _watchdog_loop(self):
+        """Background loop that auto-resets stuck state without waiting for a keypress."""
+        while True:
+            time.sleep(5)
+            with self.lock:
+                self._is_stuck()
+
     def toggle_recording(self):
         """Toggle recording on/off."""
         with self.lock:
@@ -347,7 +358,7 @@ class WhisperDictation:
             if not self.is_recording:
                 self.is_recording = True
                 self.is_processing = True
-                self._processing_deadline = time.time() + 120  # 2 minute safety timeout
+                self._processing_deadline = time.time() + 30  # 30s safety timeout
 
                 play_sound("start")
 
