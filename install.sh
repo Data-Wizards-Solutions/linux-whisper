@@ -25,10 +25,20 @@ if ! command -v ydotool &> /dev/null; then
     MISSING_PKGS+=(ydotool)
 fi
 
-if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
-    if ! command -v wl-copy &> /dev/null; then
-        MISSING_PKGS+=(wl-clipboard)
-    fi
+if ! command -v xdotool &> /dev/null; then
+    MISSING_PKGS+=(xdotool)
+fi
+
+if ! command -v xclip &> /dev/null; then
+    MISSING_PKGS+=(xclip)
+fi
+
+if ! command -v wl-copy &> /dev/null; then
+    MISSING_PKGS+=(wl-clipboard)
+fi
+
+if ! command -v wtype &> /dev/null; then
+    MISSING_PKGS+=(wtype)
 fi
 
 if ! dpkg -l | grep -q portaudio19-dev 2>/dev/null; then
@@ -149,6 +159,27 @@ echo "[SETUP] Installing Python dependencies..."
 source venv/bin/activate
 pip install --upgrade pip -q
 pip install -r requirements.txt
+
+# ---- GNOME autostart: import display env into systemd user session ----
+echo ""
+echo "[SETUP] Configuring display environment autostart..."
+
+AUTOSTART_DIR="$HOME/.config/autostart"
+AUTOSTART_FILE="$AUTOSTART_DIR/systemd-import-display.desktop"
+
+mkdir -p "$AUTOSTART_DIR"
+cat > "$AUTOSTART_FILE" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=Import display env to systemd
+Exec=systemctl --user import-environment DISPLAY XAUTHORITY XDG_SESSION_TYPE
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+EOF
+echo "[OK] Created display environment autostart"
+
+# Import into current session immediately
+systemctl --user import-environment DISPLAY XAUTHORITY XDG_SESSION_TYPE 2>/dev/null || true
 
 # ---- Setup whisper-dictate systemd user service ----
 echo ""
