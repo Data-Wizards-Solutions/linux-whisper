@@ -131,15 +131,49 @@ def _find_xauthority():
     return matches[0] if matches else None
 
 
+def _build_display_env():
+    """Build environment with correct DISPLAY and XAUTHORITY for the current session.
+
+    Reads from the process environment first (set via systemd import-environment),
+    then falls back to detecting them from the running graphical session.
+    """
+    env = dict(os.environ)
+
+    if "DISPLAY" not in env or not env["DISPLAY"]:
+        # Detect DISPLAY from running Xorg or XWayland processes
+        try:
+            result = subprocess.run(
+                ["bash", "-c", "grep -z DISPLAY /proc/$(pgrep -u $UID gnome-session | head -1)/environ 2>/dev/null | tr -d '\\0' | cut -d= -f2"],
+                capture_output=True, text=True, timeout=3
+            )
+            display = result.stdout.strip()
+            if display:
+                env["DISPLAY"] = display
+        except Exception:
+            pass
+
+    if "XAUTHORITY" not in env or not env["XAUTHORITY"]:
+        uid = os.getuid()
+        import glob
+        candidates = (
+            glob.glob(f"/run/user/{uid}/.mutter-Xwaylandauth.*") +
+            glob.glob(f"/run/user/{uid}/gdm/Xauthority") +
+            [f"/run/user/{uid}/ICEauthority"]
+        )
+        for path in candidates:
+            if os.path.exists(path):
+                env["XAUTHORITY"] = path
+                break
+
+    return env
+
+
 def _type_via_clipboard(text):
     """Type text by copying to clipboard and simulating paste."""
     session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
     try:
+        env = _build_display_env()
         if session_type == "wayland":
-            xauth = _find_xauthority()
-            env = {**os.environ, "DISPLAY": ":0"}
-            if xauth:
-                env["XAUTHORITY"] = xauth
             subprocess.run(
                 ["xdotool", "type", "--clearmodifiers", "--delay", "0", "--", text],
                 check=True, timeout=30, env=env
@@ -147,11 +181,11 @@ def _type_via_clipboard(text):
         else:
             subprocess.run(
                 ["xclip", "-selection", "clipboard"],
-                input=text.encode(), check=True, timeout=5
+                input=text.encode(), check=True, timeout=5, env=env
             )
             subprocess.run(
                 ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
-                check=True, timeout=5
+                check=True, timeout=5, env=env
             )
         return True
 
@@ -579,15 +613,9 @@ def run_hotkey_listener(hotkey_str, callback):
 # ============ Main ============
 
 def _set_xwayland_keyboard_layout():
-    """Set XWayland keyboard layout to match the system layout."""
-    xauth = _find_xauthority()
-    env = {**os.environ, "DISPLAY": ":0"}
-    if xauth:
-        env["XAUTHORITY"] = xauth
-    subprocess.run(
-        ["setxkbmap", "be"],
-        env=env, capture_output=True
-    )
+    """Set keyboard layout to Belgian AZERTY for the current display."""
+    env = _build_display_env()
+    subprocess.run(["setxkbmap", "be"], env=env, capture_output=True)
 
 
 def main():
