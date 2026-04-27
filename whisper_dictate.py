@@ -345,7 +345,7 @@ class WhisperDictation:
             sample_rate=16000,
             silero_sensitivity=0.4,
             webrtc_sensitivity=2,
-            post_speech_silence_duration=0.6,
+            post_speech_silence_duration=1.2,
             min_length_of_recording=0.5,
             min_gap_between_recordings=0,
             enable_realtime_transcription=True,
@@ -371,15 +371,10 @@ class WhisperDictation:
         print("\n[REC] Processing...")
 
     def _process_text(self, text):
-        """Called when transcription is complete."""
-        try:
-            if text and text.strip():
-                print(f"[TEXT] {text}")
-                type_text(text + " ")
-        finally:
-            # Always reset state, even if type_text raises an unexpected exception
-            with self.lock:
-                self.is_processing = False
+        """Type transcribed text at cursor."""
+        if text and text.strip():
+            print(f"[TEXT] {text}")
+            type_text(text + " ")
 
     def _is_stuck(self):
         """Check if processing has been stuck too long (safety net)."""
@@ -419,25 +414,30 @@ class WhisperDictation:
 
         def record():
             try:
-                text = self.recorder.text()
-                self._process_text(text)
+                while True:
+                    with self.lock:
+                        if not self.is_recording:
+                            break
+                        self._processing_deadline = time.time() + 30
+                    text = self.recorder.text()
+                    self._process_text(text)
             except Exception as e:
                 print(f"[ERROR] Recording failed: {e}")
-                with self.lock:
-                    self.is_processing = False
             finally:
                 with self.lock:
                     self.is_recording = False
+                    self.is_processing = False
                     self._processing_deadline = 0
                 play_sound("stop")
 
         threading.Thread(target=record, daemon=True).start()
 
     def stop_recording(self):
-        """Stop recording and transcribe — called when hotkey held long enough."""
+        """Stop recording — called when hotkey released after hold threshold."""
         with self.lock:
             if not self.is_recording:
                 return
+            self.is_recording = False
         self.recorder.stop()
 
     def abort_recording(self):

@@ -4,7 +4,7 @@
   "language": "en",
   "device": "cuda",
   "compute_type": "float16",
-  "input_method": "auto",
+  "input_method": "xdotool",
   "sound_feedback": true,
   "continuous_mode": false
 }
