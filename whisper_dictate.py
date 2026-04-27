@@ -99,13 +99,15 @@ def type_text(text, method=None, window_id=None):
         print(f"[TEXT] {text}")
         return False
 
+    env = _build_display_env()
+
     try:
         if method == "xdotool":
             cmd = ["xdotool", "type", "--clearmodifiers"]
             if window_id:
                 cmd += ["--window", window_id]
             cmd += ["--", text]
-            subprocess.run(cmd, check=True, timeout=10)
+            subprocess.run(cmd, check=True, timeout=10, env=env)
         elif method == "ydotool":
             subprocess.run(
                 ["ydotool", "type", "--", text],
@@ -114,7 +116,7 @@ def type_text(text, method=None, window_id=None):
         elif method == "wtype":
             subprocess.run(
                 ["wtype", "--", text],
-                check=True, timeout=10
+                check=True, timeout=10, env=env
             )
         return True
 
@@ -499,6 +501,7 @@ _KEY_NAMES = {
     'home': 'KEY_HOME', 'end': 'KEY_END', 'pageup': 'KEY_PAGEUP', 'pagedown': 'KEY_PAGEDOWN',
     'insert': 'KEY_INSERT', 'pause': 'KEY_PAUSE', 'capslock': 'KEY_CAPSLOCK',
     'scrolllock': 'KEY_SCROLLLOCK', 'scroll_lock': 'KEY_SCROLLLOCK',
+    'rightctrl': 'KEY_RIGHTCTRL', 'right_ctrl': 'KEY_RIGHTCTRL',
     **{f'f{i}': f'KEY_F{i}' for i in range(1, 13)},
 }
 
