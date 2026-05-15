@@ -339,6 +339,14 @@ class WhisperDictation:
         # automatic volume reduction of music/video playback.
         os.environ.setdefault("PULSE_PROP_media.role", "music")
 
+        # Pre-trust the silero-vad repo so torch.hub doesn't open an interactive
+        # prompt when running as a systemd service (no TTY → EOFError otherwise).
+        try:
+            import torch
+            torch.hub.load('snakers4/silero-vad', 'silero_vad', trust_repo=True)
+        except Exception as e:
+            print(f"[WARN] silero-vad pre-load failed: {e}")
+
         from RealtimeSTT import AudioToTextRecorder
         self.recorder = AudioToTextRecorder(
             model=config["model"],
