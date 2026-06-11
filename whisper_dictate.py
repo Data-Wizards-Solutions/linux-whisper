@@ -109,10 +109,15 @@ def type_text(text, method=None, window_id=None):
             cmd += ["--", text]
             subprocess.run(cmd, check=True, timeout=10, env=env)
         elif method == "ydotool":
-            subprocess.run(
-                ["ydotool", "type", "--", text],
-                check=True, timeout=10
-            )
+            # ydotool type sends raw evdev keycodes (QWERTY-based), so it produces
+            # wrong characters on non-QWERTY layouts. Use clipboard paste instead.
+            # Set both Wayland and X11 clipboards: native Wayland apps read wl-copy,
+            # XWayland apps (e.g. VSCode/Electron) read xclip.
+            subprocess.run(["wl-copy", "--", text], check=True, timeout=5)
+            subprocess.run(["xclip", "-selection", "clipboard"],
+                           input=text.encode(), check=True, timeout=5, env=env)
+            subprocess.run(["ydotool", "key", "--delay", "50", "ctrl+v"],
+                           check=True, timeout=5)
         elif method == "wtype":
             subprocess.run(
                 ["wtype", "--", text],
@@ -677,7 +682,8 @@ def main():
     audio_monitor.start()
 
     # Check for input method
-    method = detect_input_method()
+    configured = config.get("input_method", "auto")
+    method = detect_input_method() if configured == "auto" else configured
     if not method:
         print("[WARN] No input method found!")
         print("       Install ydotool: sudo apt install ydotool")
