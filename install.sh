@@ -193,17 +193,23 @@ mkdir -p "$WHISPER_SERVICE_DIR"
 cat > "$WHISPER_SERVICE" << EOF
 [Unit]
 Description=Linux Whisper Dictation
+After=ydotoold.service
+Wants=ydotoold.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 WorkingDirectory=$SCRIPT_DIR
 ExecStart=$SCRIPT_DIR/venv/bin/python $SCRIPT_DIR/whisper_dictate.py
-Restart=on-failure
-RestartSec=5
+Restart=always
+RestartSec=15
+KillMode=control-group
 TimeoutStartSec=120
 StandardOutput=journal
 StandardError=journal
 Environment="PULSE_PROP_media.role=music"
+Environment="YDOTOOL_SOCKET=/tmp/.ydotool_socket"
 
 [Install]
 WantedBy=default.target
