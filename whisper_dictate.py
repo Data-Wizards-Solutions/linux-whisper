@@ -631,6 +631,8 @@ def run_hotkey_listener(hotkey_str, on_start, on_stop, on_abort, hold_seconds=3.
 
     pressed_keys: set[int] = set()
     hold_start: float | None = None
+    last_rescan: float = time.time()
+    RESCAN_INTERVAL = 30.0
 
     while True:
         try:
@@ -660,10 +662,23 @@ def run_hotkey_listener(hotkey_str, on_start, on_stop, on_abort, hold_seconds=3.
                 except (OSError, IOError):
                     time.sleep(0.5)
                     keyboards, _ = find_keyboard_devices(evdev, ecodes)
+                    last_rescan = time.time()
+
+            now = time.time()
+            if now - last_rescan >= RESCAN_INTERVAL:
+                new_keyboards, _ = find_keyboard_devices(evdev, ecodes)
+                new_paths = {d.path for d in new_keyboards}
+                old_paths = {d.path for d in keyboards}
+                if new_paths != old_paths:
+                    keyboards = new_keyboards
+                    dev_names = ', '.join(d.name for d in keyboards)
+                    print(f"[HOTKEY] Keyboard devices updated: {dev_names}")
+                last_rescan = now
 
         except (OSError, IOError, ValueError):
             time.sleep(1)
             keyboards, _ = find_keyboard_devices(evdev, ecodes)
+            last_rescan = time.time()
 
 # ============ Main ============
 
