@@ -448,10 +448,10 @@ class WhisperDictation:
                             break
                         self._processing_deadline = time.time() + 30
                     text = self.recorder.text()
+                    self._process_text(text)
                     with self.lock:
                         if not self.is_recording:
                             break
-                    self._process_text(text)
             except Exception as e:
                 print(f"[ERROR] Recording failed: {e}")
             finally:
