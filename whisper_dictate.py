@@ -398,12 +398,26 @@ class WhisperDictation:
         """Check if processing has been stuck too long (safety net)."""
         if self.is_processing and self._processing_deadline > 0:
             if time.time() > self._processing_deadline:
-                print("[WARN] Processing timed out, resetting state...")
+                print("[WARN] Processing timed out, aborting stuck recording...")
+                self._abort_recorder()
                 self.is_processing = False
                 self.is_recording = False
                 self._processing_deadline = 0
                 return True
         return False
+
+    def _abort_recorder(self):
+        """Interrupt an in-progress recorder.text() call.
+
+        Without this, a stuck recording thread stays parked inside
+        recorder.text() forever after the safety-net timeout resets the
+        is_recording/is_processing flags, leaking one thread per stuck
+        session for the lifetime of the process.
+        """
+        try:
+            self.recorder.abort()
+        except Exception as e:
+            print(f"[WARN] Failed to abort stuck recorder: {e}")
 
     def _watchdog_loop(self):
         """Background loop that auto-resets stuck state without waiting for a keypress."""
