@@ -326,6 +326,14 @@ class AudioHealthMonitor:
 
 # ============ Main Recorder ============
 
+# Watchdog ceilings. Both are stuck-thread backstops, not latency budgets:
+# recorder.text() blocks for a whole utterance, and a decode of a long
+# VAD-bounded phrase can take a while. Anything tighter risks aborting real
+# audio, which is silent data loss.
+RECORDING_TIMEOUT = 600
+TRANSCRIBE_TIMEOUT = 120
+
+
 class WhisperDictation:
     def __init__(self):
         self.recorder = None
@@ -380,7 +388,8 @@ class WhisperDictation:
         self._watchdog.start()
 
     def _on_realtime_update(self, text):
-        print(f"\r[LIVE] {text}          ", end="", flush=True)
+        if sys.stdout.isatty():
+            print(f"\r[LIVE] {text}          ", end="", flush=True)
 
     def _on_recording_start(self):
         print("[REC] Recording...")
@@ -413,11 +422,18 @@ class WhisperDictation:
         recorder.text() forever after the safety-net timeout resets the
         is_recording/is_processing flags, leaking one thread per stuck
         session for the lifetime of the process.
+
+        Runs off-thread: recorder.abort() waits on an event that only a live
+        recorder.text() call can set, so aborting inline would park whichever
+        thread called us — the evdev listener (no more hotkeys) or the watchdog.
         """
-        try:
-            self.recorder.abort()
-        except Exception as e:
-            print(f"[WARN] Failed to abort stuck recorder: {e}")
+        def abort():
+            try:
+                self.recorder.abort()
+            except Exception as e:
+                print(f"[WARN] Failed to abort stuck recorder: {e}")
+
+        threading.Thread(target=abort, daemon=True).start()
 
     def _watchdog_loop(self):
         """Background loop that auto-resets stuck state without waiting for a keypress."""
@@ -440,7 +456,7 @@ class WhisperDictation:
 
             self.is_recording = True
             self.is_processing = True
-            self._processing_deadline = time.time() + 30
+            self._processing_deadline = time.time() + RECORDING_TIMEOUT
 
         try:
             env = _build_display_env()
@@ -460,7 +476,7 @@ class WhisperDictation:
                     with self.lock:
                         if not self.is_recording:
                             break
-                        self._processing_deadline = time.time() + 30
+                        self._processing_deadline = time.time() + RECORDING_TIMEOUT
                     text = self.recorder.text()
                     self._process_text(text)
                     with self.lock:
@@ -483,7 +499,17 @@ class WhisperDictation:
             if not self.is_recording:
                 return
             self.is_recording = False
-        self.recorder.stop()
+            self._processing_deadline = time.time() + TRANSCRIBE_TIMEOUT
+
+        # recorder.stop() only unblocks recorder.text() while a phrase is being
+        # captured. Between VAD phrases, text() waits on the start event instead
+        # and ignores the stop event, so a release there would never return and
+        # everything said afterwards would accumulate into a session only the
+        # watchdog can end. Interrupt instead; an idle recorder holds no audio.
+        if self.recorder.is_recording:
+            self.recorder.stop()
+        else:
+            self._abort_recorder()
 
     def abort_recording(self):
         """Abort recording without transcribing — called when hotkey released too early."""
