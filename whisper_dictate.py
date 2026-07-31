@@ -381,6 +381,11 @@ class WhisperDictation:
             on_recording_stop=self._on_recording_stop,
         )
 
+        # Mic stays muted until the hotkey is held — recorder.set_microphone()
+        # just flips a flag the audio worker checks before enqueueing captured
+        # audio, so this doesn't reopen the stream or cost the "warm model" latency.
+        self.recorder.set_microphone(False)
+
         print(f"[READY] Model loaded. Press {config['hotkey']} to start dictating.")
 
         # Background watchdog to auto-reset stuck state
@@ -412,6 +417,7 @@ class WhisperDictation:
                 self.is_processing = False
                 self.is_recording = False
                 self._processing_deadline = 0
+                self.recorder.set_microphone(False)
                 return True
         return False
 
@@ -457,6 +463,7 @@ class WhisperDictation:
             self.is_recording = True
             self.is_processing = True
             self._processing_deadline = time.time() + RECORDING_TIMEOUT
+            self.recorder.set_microphone(True)
 
         try:
             env = _build_display_env()
@@ -489,6 +496,7 @@ class WhisperDictation:
                     self.is_recording = False
                     self.is_processing = False
                     self._processing_deadline = 0
+                    self.recorder.set_microphone(False)
                 play_sound("stop")
 
         threading.Thread(target=record, daemon=True).start()
@@ -500,6 +508,7 @@ class WhisperDictation:
                 return
             self.is_recording = False
             self._processing_deadline = time.time() + TRANSCRIBE_TIMEOUT
+            self.recorder.set_microphone(False)
 
         # recorder.stop() only unblocks recorder.text() while a phrase is being
         # captured. Between VAD phrases, text() waits on the start event instead
@@ -519,6 +528,7 @@ class WhisperDictation:
             self.is_recording = False
             self.is_processing = False
             self._processing_deadline = 0
+            self.recorder.set_microphone(False)
         print("[ABORT] Released too early — discarded.")
         self.recorder.abort()
 
