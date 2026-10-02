@@ -23,6 +23,9 @@ class FakeRecorder:
     def stop(self):
         self.calls.append("stop")
 
+    def set_microphone(self, on):
+        pass
+
     def abort(self):
         self.calls.append("abort")
         self.aborting.set()

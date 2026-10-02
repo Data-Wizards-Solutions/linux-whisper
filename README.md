@@ -4,6 +4,15 @@ A local voice-to-text tool for Linux. Press a hotkey, speak, and it types what y
 
 Works on both X11 and Wayland (including GNOME).
 
+## Why local?
+
+Cloud dictation apps send every word you say to someone else's server: your emails, passwords spoken by mistake, medical notes, client details. This tool doesn't.
+
+- **Audio never leaves your machine.** Recording, voice detection and transcription all run locally.
+- **No account, no API key, no subscription, no telemetry.**
+- **Works offline** once the Whisper model is downloaded.
+- **Auditable.** It's one Python file; read it yourself.
+
 ## Features
 
 - Local transcription using Whisper (no cloud, no API keys)
@@ -16,7 +25,7 @@ Works on both X11 and Wayland (including GNOME).
 ## Quick Start
 
 ```bash
-git clone <repo-url> ~/dev/linux-whisper
+git clone https://github.com/Data-Wizards-Solutions/linux-whisper.git ~/dev/linux-whisper
 cd ~/dev/linux-whisper
 ./install.sh    # Installs deps, sets up permissions
 # Log out and back in (required for input group)
@@ -61,24 +70,29 @@ First run downloads the Whisper model (~150MB for base.en).
 
 ### Controls
 
-- **Ctrl+Space** (default): Start recording
-- Recording stops automatically when you stop speaking (VAD)
-- Transcribed text is typed at your cursor in the focused app
+- **Hold Ctrl+Space** (default) and speak. Each phrase is transcribed and typed as soon as you pause.
+- **Release** to stop. A tap shorter than 1 second is discarded, so accidental presses don't type anything.
 
 ## Configuration
 
-Edit `config.json`:
+`config.json` is created with defaults on first run. Edit it to override:
 
 ```json
 {
   "hotkey": "<ctrl>+space",
   "model": "base.en",
   "language": "en",
+  "device": "cuda",
+  "compute_type": "default",
   "input_method": "auto",
-  "sound_feedback": true,
-  "continuous_mode": false
+  "keyboard_layout": "",
+  "sound_feedback": true
 }
 ```
+
+- `device`: `cuda` uses an NVIDIA GPU and falls back to CPU automatically.
+- `language`: set to `""` with a multilingual model (e.g. `medium`, `large-v3`) to auto-detect.
+- `keyboard_layout`: optional `setxkbmap` layout (e.g. `be`, `de`) forced at startup, for non-QWERTY users typing via `xdotool`.
 
 ### Model Options
 
@@ -149,6 +163,12 @@ arecord -l  # List audio devices
 
 See [RESEARCH.md](RESEARCH.md) for detailed analysis of alternatives and design decisions.
 
+## Credits
+
+Forked from [arniesaha/linux-whisper](https://github.com/arniesaha/linux-whisper) by Arnab Saha. This fork adds hold-to-talk with multi-phrase recording, accidental-tap discard, microphone gating so the mic is only open while the hotkey is held, stuck-session recovery fixes, and CUDA GPU support.
+
+Built on [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT), [python-evdev](https://github.com/gvalkov/python-evdev) and [ydotool](https://github.com/ReimuNotMoe/ydotool).
+
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).

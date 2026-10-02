@@ -36,10 +36,11 @@ except Exception:
 CONFIG_PATH = Path(__file__).parent / "config.json"
 DEFAULT_CONFIG = {
     "hotkey": "<ctrl>+space",
-    "model": "medium.en",
+    "model": "base.en",
     "language": "en",
-    "device": "cuda",
-    "compute_type": "float16",
+    "device": "cuda",             # RealtimeSTT falls back to cpu if CUDA is unavailable
+    "compute_type": "default",    # float16 on GPU, float32 on CPU
+    "keyboard_layout": "",        # e.g. "be" to force setxkbmap layout for xdotool typing
     "input_method": "auto",       # auto, ydotool, xdotool, wtype, clipboard
     "sound_feedback": True,
     "continuous_mode": False,
@@ -736,9 +737,10 @@ def run_hotkey_listener(hotkey_str, on_start, on_stop, on_abort, hold_seconds=3.
 # ============ Main ============
 
 def _set_xwayland_keyboard_layout():
-    """Set keyboard layout to Belgian AZERTY for the current display."""
-    env = _build_display_env()
-    subprocess.run(["setxkbmap", "be"], env=env, capture_output=True)
+    """Force the configured X keyboard layout so xdotool types the right characters."""
+    layout = config.get("keyboard_layout")
+    if layout:
+        subprocess.run(["setxkbmap", layout], env=_build_display_env(), capture_output=True)
 
 
 def main():
