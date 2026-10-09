@@ -1,3 +1,5 @@
+> **This project has moved to [metsko/linux-whisper](https://github.com/metsko/linux-whisper).** This copy is no longer maintained.
+
 # Linux Whisper Dictation
 
 A local voice-to-text tool for Linux. Press a hotkey, speak, and it types what you said at your cursor — in any app (browser, editor, terminal, etc.).
